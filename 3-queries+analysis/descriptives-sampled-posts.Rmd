@@ -1,0 +1,143 @@
+---
+title: "Overview on 100 Sampled FB Posts Including NCES Data"
+author: "~CB"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+f <- here::here('3-queries+analysis', 'data', '100-sampled-posts-with-school-data-new.csv')
+ds <- read.csv(f, header=FALSE)
+
+f <- here::here('3-queries+analysis', 'data', '100-sampled-posts-with-district-data-new.csv')
+dd <- read.csv(f, header=FALSE)
+```
+
+### First thing to check: Left join creates duplicate rows even though all variables are equal
+### For districts, there are indeed more than one match during the left join
+
+```{r}
+nrow(ds)
+nrow(ds %>% unique())
+
+nrow(dd)
+nrow(dd %>% unique()) 
+
+ds <- ds %>% unique()
+dd <- dd %>% unique()
+```
+
+### How many of the sampled posts had at least one match with either schools or district data?
+
+```{r}
+# TODO: We need better name import
+
+names(ds) <- paste0(names(ds), '_schools')
+names(dd) <- paste0(names(dd), '_districts')
+
+names(ds)[9] <- 'post_url'
+names(ds)[32] <- 'state'
+names(dd)[9] <- 'post_url'
+names(dd)[33] <- 'state'
+
+d <- inner_join(
+  ds %>% select(post_url, state),
+  dd %>% select(post_url, state),
+  by = 'post_url'
+) %>% 
+  mutate(state = coalesce(state.x, state.y)) %>% 
+  select(post_url, state) %>% 
+  mutate(state = ifelse(state=='', NA, state))
+
+# nrow looking good
+d %>% 
+  unique() %>% 
+  nrow()
+
+d %>% unique() %>% pull(state) %>% is.na() %>% sum() # mhhh
+
+d %>% unique() %>% pull(state) %>% table() %>% knitr::kable()
+
+# @ben: Could it be possible that there are more than 14 matches?
+# The number seems rather low considering that this is for *either*
+# a match in the NCES schools or NCES district table
+
+# * possible sources of errors: string matching with URL (e.g.,
+  #LEFT JOIN nces_districts ON nces_districts.districtncesid = profile_lookup.nces_id
+  #WHERE URL IN (
+  #   'https://www.facebook.com/HotSpringsHuskies/posts/902905996776728', .....)
+# unreliable?
+# can you think of some additional reasons?
+```
+
+### Counting states in full data set and % matches with NCES tables
+
+```{r}
+# SELECT nces_schools.statecode, COUNT(nces_schools.statecode) FROM posts
+# LEFT JOIN profile_lookup ON profile_lookup.profile_id = posts.profile_id
+# LEFT JOIN nces_schools ON nces_schools.schoolncesid = profile_lookup.nces_id
+# GROUP BY nces_schools.statecode;
+
+f <- here::here('3-queries+analysis', 'data', 'count-states.csv')
+dat <- read.csv(f)
+
+dat[,2] %>% sum()
+
+# %
+round(dat[,2] %>% sum() / 15000000, 4)*100
+
+# @ben: there are 20% matches of states in NCES school table.
+# could you find out how many matches we have for each post with 
+# *either* the NCES schools or NCES districts table?
+
+# I think you could either do this through some more SQL joins or
+# through looking at all IDs in the lookup table that match to IDs
+# in the posts table and in the NCES schools and NCES districts tables
+```
+### Additional questions
+
+```{r}
+
+# @ben, is it possible to query cloud sql to obtain descriptives on
+# all of the following variables at once / through one command only?
+# Or what's the fastest way? The command for states worked fine, thank you!
+
+# -- SCHOOL VARIABLES TO LOOK AT
+# --stateabbrlatest
+# --statecode
+# --freereducedlunch
+# --lunchprogram
+# --lowestofferedgrade
+# --highestofferedgrade
+# --schoollevel
+# --agencytype
+# --urbancentric
+# 
+# -- DISTRICT VARIABLES TO LOOK AT
+# --state
+# --agencytype
+# --urbancentric
+# --g12thoffered
+# --g11thoffered
+# --g10thoffered
+# --g9thoffered
+# --g8thoffered
+# --g7thoffered
+# --g6thoffered
+# --g5thoffered
+# --g4thoffered
+# --g3rdoffered
+# --g2ndoffered
+# --g1stoffered
+# --gkoffered
+# --prekoffered
+# --highestofferedgrade
+# --freereducedlunch
+# --pupilteacherratio
+
+```
+
