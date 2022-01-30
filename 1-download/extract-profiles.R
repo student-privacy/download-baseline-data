@@ -21,7 +21,7 @@ unlist_keep_null <- function(l) {
 }
 
 extract_json_profiles <- function(file) {
-    j <- rjson::fromJSON(file=file)$result$posts
+    j <- jsonlite::fromJSON(file=file)$result$posts
     cbind(map(j, c("account", "id")) %>% unlist_keep_null(), 
           map(j, c("account", "handle")) %>% unlist_keep_null()) %>%
         as.data.frame() %>% 
